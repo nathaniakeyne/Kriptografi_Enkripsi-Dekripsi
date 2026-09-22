@@ -2,6 +2,47 @@ import base64
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
+
+# --- 2. VIGENERE CIPHER ---
+def vigenere_encrypt(text, key):
+    result = []
+    key = key.lower()
+    key_length = len(key)
+    key_indices = [ord(k) - ord('a') for k in key if k.isalpha()]
+    
+    if not key_indices:
+        return text
+
+    key_idx = 0
+    for char in text:
+        if char.isalpha():
+            start = ord('A') if char.isupper() else ord('a')
+            shift = key_indices[key_idx % len(key_indices)]
+            result.append(chr((ord(char) - start + shift) % 26 + start))
+            key_idx += 1
+        else:
+            result.append(char)
+    return "".join(result)
+
+def vigenere_decrypt(text, key):
+    result = []
+    key = key.lower()
+    key_indices = [ord(k) - ord('a') for k in key if k.isalpha()]
+    
+    if not key_indices:
+        return text
+
+    key_idx = 0
+    for char in text:
+        if char.isalpha():
+            start = ord('A') if char.isupper() else ord('a')
+            shift = key_indices[key_idx % len(key_indices)]
+            result.append(chr((ord(char) - start - shift) % 26 + start))
+            key_idx += 1
+        else:
+            result.append(char)
+    return "".join(result)
+
 # --- 3. STREAM CIPHER (MODERN - BERBASIS BIT XOR / KEYSTREAM) ---
 # Mengimplementasikan prinsip stream cipher bit per bit (p_i XOR k_i) sesuai PDF
 def stream_cipher_process(text, key_str):
