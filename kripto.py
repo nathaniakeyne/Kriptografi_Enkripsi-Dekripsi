@@ -80,3 +80,4 @@ def stream_cipher_decrypt(cipher_text_b64, key_str):
         return f"Error Dekripsi Stream Cipher: {str(e)}"
 
 print("Hello World!")
+print("Hello World!")
