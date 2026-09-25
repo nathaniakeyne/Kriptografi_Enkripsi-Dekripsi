@@ -1,5 +1,5 @@
 import streamlit as st
-import kripto
+import kripto2
 
 st.set_page_config(page_title="Aplikasi Kriptografi", layout="wide")
 
@@ -24,7 +24,7 @@ with tab1:
     
     if col1.button("Enkripsi", key="c_enc_btn"):
         if text_input:
-            res, steps = kripto.caesar_encrypt(text_input, shift_val)
+            res, steps = kripto2.caesar_encrypt(text_input, shift_val)
             st.success("Hasil Enkripsi:")
             st.code(res)
             
@@ -36,7 +36,7 @@ with tab1:
 
     if col2.button("Dekripsi", key="c_dec_btn"):
         if text_input:
-            res, steps = kripto.caesar_decrypt(text_input, shift_val)
+            res, steps = kripto2.caesar_decrypt(text_input, shift_val)
             st.success("Hasil Dekripsi:")
             st.code(res)
             
@@ -55,7 +55,7 @@ with tab2:
     col1, col2 = st.columns(2)
     if col1.button("Enkripsi", key="v_enc_btn"):
         if text_input and key_input:
-            res, steps = kripto.vigenere_encrypt(text_input, key_input)
+            res, steps = kripto2.vigenere_encrypt(text_input, key_input)
             st.success("Hasil Enkripsi:")
             st.code(res)
             
@@ -67,7 +67,7 @@ with tab2:
 
     if col2.button("Dekripsi", key="v_dec_btn"):
         if text_input and key_input:
-            res, steps = kripto.vigenere_decrypt(text_input, key_input)
+            res, steps = kripto2.vigenere_decrypt(text_input, key_input)
             st.success("Hasil Dekripsi:")
             st.code(res)
             
@@ -86,7 +86,7 @@ with tab3:
     col1, col2 = st.columns(2)
     if col1.button("Enkripsi", key="a_enc_btn"):
         if text_input:
-            res, steps = kripto.aes_encrypt(text_input, key_input)
+            res, steps = kripto2.aes_encrypt(text_input, key_input)
             st.success("Hasil Enkripsi:")
             st.code(res)
             
@@ -98,7 +98,7 @@ with tab3:
 
     if col2.button("Dekripsi", key="a_dec_btn"):
         if text_input:
-            res, steps = kripto.aes_decrypt(text_input, key_input)
+            res, steps = kripto2.aes_decrypt(text_input, key_input)
             st.success("Hasil Dekripsi:")
             st.code(res)
             
@@ -117,7 +117,7 @@ with tab4:
     col1, col2 = st.columns(2)
     if col1.button("Enkripsi", key="r_enc_btn"):
         if text_input and key_input:
-            res, steps = kripto.rc4_encrypt(text_input, key_input)
+            res, steps = kripto2.rc4_encrypt(text_input, key_input)
             st.success("Hasil Enkripsi (HEX):")
             st.code(res)
             
@@ -130,7 +130,7 @@ with tab4:
     if col2.button("Dekripsi", key="r_dec_btn"):
         if text_input and key_input:
             try:
-                res, steps = kripto.rc4_decrypt(text_input, key_input)
+                res, steps = kripto2.rc4_decrypt(text_input, key_input)
                 st.success("Hasil Dekripsi:")
                 st.code(res)
                 
@@ -165,7 +165,7 @@ with tab5:
     
     if btn_col1.button("Enkripsi Super", key="s_enc_btn"):
         if text_input and v_key and r_key:
-            res, summary, details = kripto.super_encrypt(text_input, c_shift, v_key, a_key, r_key)
+            res, summary, details = kripto2.super_encrypt(text_input, c_shift, v_key, a_key, r_key)
             st.success("Hasil Akhir Super Enkripsi (HEX):")
             st.code(res)
             
@@ -184,7 +184,7 @@ with tab5:
     if btn_col2.button("Dekripsi Super", key="s_dec_btn"):
         if text_input and v_key and r_key:
             try:
-                res, summary, details = kripto.super_decrypt(text_input, c_shift, v_key, a_key, r_key)
+                res, summary, details = kripto2.super_decrypt(text_input, c_shift, v_key, a_key, r_key)
                 st.success("Hasil Akhir Super Dekripsi (Plaintext):")
                 st.code(res)
                 
