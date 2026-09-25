@@ -1,3 +1,6 @@
+import random
+import math
+
 # --- 1. CAESAR CIPHER ---
 def caesar_encrypt(text, shift):
     result = ""
@@ -158,56 +161,160 @@ def rc4_decrypt(ciphertext_hex, key):
     text_result = raw_bytes.decode("latin-1")
     return text_result, steps
 
+# --- 4. RSA (MODERN - ASIMETRIS) ---
 
-# --- 5. SUPER ENCRYPTION (4 ALGORITMA) ---
-def super_encrypt(text, caesar_shift, vigenere_key, aes_key, rc4_key):
-    steps_summary = {}
-    detailed_steps = {}
-    
-    # Tahap 1: Caesar Cipher
-    res_caesar, s_caesar = caesar_encrypt(text, caesar_shift)
-    steps_summary["1. Setelah Caesar Cipher"] = res_caesar
-    detailed_steps["1. Caesar Cipher"] = s_caesar
-    
-    # Tahap 2: Vigenere Cipher
-    res_vigenere, s_vigenere = vigenere_encrypt(res_caesar, vigenere_key)
-    steps_summary["2. Setelah Vigenere Cipher"] = res_vigenere
-    detailed_steps["2. Vigenere Cipher"] = s_vigenere
-    
-    # Tahap 3: AES Sederhana
-    res_aes, s_aes = aes_encrypt(res_vigenere, aes_key)
-    steps_summary["3. Setelah AES Sederhana"] = res_aes
-    detailed_steps["3. AES Sederhana"] = s_aes
-    
-    # Tahap 4: RC4
-    res_rc4, s_rc4 = rc4_encrypt(res_aes, rc4_key)
-    steps_summary["4. Setelah RC4"] = res_rc4
-    detailed_steps["4. RC4"] = s_rc4
-    
-    return res_rc4, steps_summary, detailed_steps
+def rsa_is_prime(n, k=20):
+    if n < 2:
+        return False
+    if n in (2, 3):
+        return True
+    if n % 2 == 0:
+        return False
+    r, d = 0, n - 1
+    while d % 2 == 0:
+        r += 1
+        d //= 2
+    for _ in range(k):
+        a = random.randrange(2, n - 1)
+        x = pow(a, d, n)
+        if x == 1 or x == n - 1:
+            continue
+        for _ in range(r - 1):
+            x = pow(x, 2, n)
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
 
-def super_decrypt(ciphertext_hex, caesar_shift, vigenere_key, aes_key, rc4_key):
-    steps_summary = {}
-    detailed_steps = {}
-    
-    # Reverse Tahap 1: RC4
-    res_rc4, s_rc4 = rc4_decrypt(ciphertext_hex, rc4_key)
-    steps_summary["1. Setelah RC4"] = res_rc4
-    detailed_steps["1. RC4"] = s_rc4
-    
-    # Reverse Tahap 2: AES Sederhana
-    res_aes, s_aes = aes_decrypt(res_rc4, aes_key)
-    steps_summary["2. Setelah AES Sederhana"] = res_aes
-    detailed_steps["2. AES Sederhana"] = s_aes
-    
-    # Reverse Tahap 3: Vigenere Cipher
-    res_vigenere, s_vigenere = vigenere_decrypt(res_aes, vigenere_key)
-    steps_summary["3. Setelah Vigenere Cipher"] = res_vigenere
-    detailed_steps["3. Vigenere Cipher"] = s_vigenere
-    
-    # Reverse Tahap 4: Caesar Cipher
-    res_caesar, s_caesar = caesar_decrypt(res_vigenere, caesar_shift)
-    steps_summary["4. Setelah Caesar Cipher"] = res_caesar
-    detailed_steps["4. Caesar Cipher"] = s_caesar
-    
-    return res_caesar, steps_summary, detailed_steps
+
+def rsa_generate_prime(bits):
+    while True:
+        candidate = random.getrandbits(bits) | (1 << (bits - 1)) | 1
+        if rsa_is_prime(candidate):
+            return candidate
+
+
+def rsa_extended_gcd(a, b):
+    if b == 0:
+        return a, 1, 0
+    g, x1, y1 = rsa_extended_gcd(b, a % b)
+    return g, y1, x1 - (a // b) * y1
+
+
+def rsa_mod_inverse(e, phi):
+    g, d, _ = rsa_extended_gcd(e, phi)
+    if g != 1:
+        raise ValueError(f"e={e} tidak coprime dengan phi={phi}")
+    return d % phi
+
+
+def rsa_generate_keypair(bits=16):
+    p = rsa_generate_prime(bits)
+    q = rsa_generate_prime(bits)
+    while q == p:
+        q = rsa_generate_prime(bits)
+
+    n = p * q
+    phi = (p - 1) * (q - 1)
+
+    e = 65537
+    if math.gcd(e, phi) != 1:
+        e = 3
+        while math.gcd(e, phi) != 1:
+            e += 2
+
+    d = rsa_mod_inverse(e, phi)
+    return {"p": p, "q": q, "n": n, "phi": phi, "e": e, "d": d}
+
+
+def rsa_get_block_size(n):
+    return max((n.bit_length() - 1) // 8, 1)
+
+
+def rsa_encrypt(text, e, n):
+    """Return (res_string, steps) - format sama kayak caesar_encrypt dkk."""
+    block_size = rsa_get_block_size(n)
+    data = text.encode("utf-8")
+    pad_len = (-len(data)) % block_size
+    data += b"\x00" * pad_len
+
+    blocks = [data[i:i + block_size] for i in range(0, len(data), block_size)]
+    int_blocks = [int.from_bytes(b, "big") for b in blocks]
+
+    cipher_blocks = []
+    steps = []
+    for idx, m in enumerate(int_blocks):
+        c = pow(m, e, n)
+        cipher_blocks.append(c)
+        steps.append(f"Blok {idx+1}: M={m} -> C = {m}^{e} mod {n} = {c}")
+
+    res = ",".join(str(c) for c in cipher_blocks)
+    return res, steps
+
+
+def rsa_decrypt(ciphertext_str, d, n):
+    """Input: string angka dipisah koma. Return (plaintext, steps)."""
+    block_size = rsa_get_block_size(n)
+    try:
+        cipher_blocks = [int(x) for x in ciphertext_str.strip().split(",")]
+    except ValueError:
+        raise ValueError("Ciphertext RSA harus berupa angka dipisah koma (misal: 123,456,789)")
+
+    int_blocks = []
+    steps = []
+    for idx, c in enumerate(cipher_blocks):
+        m = pow(c, d, n)
+        int_blocks.append(m)
+        steps.append(f"Blok {idx+1}: C={c} -> M = {c}^{d} mod {n} = {m}")
+
+    data = b"".join(i.to_bytes(block_size, "big") for i in int_blocks)
+    text_result = data.rstrip(b"\x00").decode("utf-8", errors="ignore")
+    return text_result, steps
+
+# --- 5. SUPER ENKRIPSI ---
+
+def super_encrypt(text, c_shift, v_key, a_key, e, n):
+    summary = {}
+    details = {}
+
+    res1, steps1 = caesar_encrypt(text, c_shift)
+    summary["1. Caesar"] = res1
+    details["1. Caesar"] = steps1
+
+    res2, steps2 = vigenere_encrypt(res1, v_key)
+    summary["2. Vigenere"] = res2
+    details["2. Vigenere"] = steps2
+
+    res3, steps3 = aes_encrypt(res2, a_key)
+    summary["3. AES"] = res3
+    details["3. AES"] = steps3
+
+    res4, steps4 = rsa_encrypt(res3, e, n)
+    summary["4. RSA"] = res4
+    details["4. RSA"] = steps4
+
+    return res4, summary, details
+
+
+def super_decrypt(ciphertext, c_shift, v_key, a_key, d, n):
+    summary = {}
+    details = {}
+
+    res1, steps1 = rsa_decrypt(ciphertext, d, n)
+    summary["4. RSA"] = res1
+    details["4. RSA"] = steps1
+
+    res2, steps2 = aes_decrypt(res1, a_key)
+    summary["3. AES"] = res2
+    details["3. AES"] = steps2
+
+    res3, steps3 = vigenere_decrypt(res2, v_key)
+    summary["2. Vigenere"] = res3
+    details["2. Vigenere"] = steps3
+
+    res4, steps4 = caesar_decrypt(res3, c_shift)
+    summary["1. Caesar"] = res4
+    details["1. Caesar"] = steps4
+
+    return res4, summary, details

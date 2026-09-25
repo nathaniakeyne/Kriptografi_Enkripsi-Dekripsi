@@ -108,49 +108,84 @@ with tab3:
         else:
             st.warning("Masukkan teks terlebih dahulu!")
 
-# ------------------- TAB 4: RC4 -------------------
-with tab4:
-    st.header("4. RC4")
-    text_input = st.text_area("Masukkan teks / Hex (untuk Dekripsi):", value="", key="r_text")
-    key_input = st.text_input("Masukkan Kunci RC4:", value="KEY", key="r_key")
-    
-    col1, col2 = st.columns(2)
-    if col1.button("Enkripsi", key="r_enc_btn"):
-        if text_input and key_input:
-            res, steps = kripto2.rc4_encrypt(text_input, key_input)
-            st.success("Hasil Enkripsi (HEX):")
-            st.code(res)
-            
-            with st.expander("Lihat Langkah-Langkah Bitwise XOR"):
-                for step in steps:
-                    st.code(step)
-        else:
-            st.warning("Teks dan Kunci harus diisi!")
+# ------------------- TAB 4: RSA -------------------
 
-    if col2.button("Dekripsi", key="r_dec_btn"):
-        if text_input and key_input:
+with tab4:
+    st.header("4. RSA")
+    st.caption("Kriptografi Modern - Asimetris")
+
+    if "rsa_keys" not in st.session_state:
+        st.session_state.rsa_keys = None
+
+    bits = st.slider("Ukuran bit prima:", min_value=8, max_value=64, value=16, step=8, key="rsa_bits")
+
+    if st.button("🔑 Generate Key", key="rsa_genkey_btn"):
+        st.session_state.rsa_keys = kripto2.rsa_generate_keypair(bits)
+
+    if st.session_state.rsa_keys:
+        k = st.session_state.rsa_keys
+        st.code(
+            f"p = {k['p']}\nq = {k['q']}\n"
+            f"Public  (e, n) = ({k['e']}, {k['n']})\n"
+            f"Private (d, n) = ({k['d']}, {k['n']})"
+        )
+    else:
+        st.info("Klik 'Generate Key' dulu sebelum enkripsi/dekripsi.")
+
+    text_input = st.text_area(
+        "Masukkan teks (Enkripsi) / Ciphertext angka dipisah koma (Dekripsi):",
+        value="", key="rsa_text"
+    )
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("Enkripsi", key="rsa_enc_btn"):
+        if not st.session_state.rsa_keys:
+            st.warning("Generate key dulu!")
+        elif text_input:
+            k = st.session_state.rsa_keys
+            res, steps = kripto2.rsa_encrypt(text_input, k["e"], k["n"])
+            st.success("Hasil Enkripsi:")
+            st.code(res)
+
+            with st.expander("Lihat Langkah-Langkah Enkripsi"):
+                for step in steps:
+                    st.write(f"- {step}")
+        else:
+            st.warning("Masukkan teks terlebih dahulu!")
+
+    if col2.button("Dekripsi", key="rsa_dec_btn"):
+        if not st.session_state.rsa_keys:
+            st.warning("Generate key dulu!")
+        elif text_input:
+            k = st.session_state.rsa_keys
             try:
-                res, steps = kripto2.rc4_decrypt(text_input, key_input)
+                res, steps = kripto2.rsa_decrypt(text_input, k["d"], k["n"])
                 st.success("Hasil Dekripsi:")
                 st.code(res)
-                
-                with st.expander("Lihat Langkah-Langkah Bitwise XOR"):
+
+                with st.expander("Lihat Langkah-Langkah Dekripsi"):
                     for step in steps:
-                        st.code(step)
+                        st.write(f"- {step}")
             except Exception as e:
                 st.error(f"Error: {e}")
         else:
-            st.warning("Ciphertext Hex dan Kunci harus diisi!")
+            st.warning("Ciphertext harus diisi!")
+
 
 # ------------------- TAB 5: SUPER ENKRIPSI -------------------
+
 with tab5:
     st.header("5. Super Enkripsi")
-    st.caption("Urutan Enkripsi: 1. Caesar -> 2. Vigenere -> 3. AES Sederhana -> 4. RC4")
-    
+    st.caption("Urutan Enkripsi: 1. Caesar -> 2. Vigenere -> 3. AES -> 4. RSA")
+
+    if "super_rsa_keys" not in st.session_state:
+        st.session_state.super_rsa_keys = None
+
     text_input = st.text_area("Masukkan teks:", value="", key="s_text")
-    
+
     st.subheader("Parameter Kunci Ke-4 Algoritma")
-    
+
     k_col1, k_col2, k_col3, k_col4 = st.columns(4)
     with k_col1:
         c_shift = st.number_input("1. Caesar Shift:", value=3, step=1, key="s_cshift")
@@ -159,20 +194,34 @@ with tab5:
     with k_col3:
         a_key = st.number_input("3. AES Offset:", value=1, step=1, key="s_akey")
     with k_col4:
-        r_key = st.text_input("4. RC4 Key:", value="STREAM", key="s_rkey")
-    
+        st.write("4. RSA Key:")
+        bits_super = st.slider("Bit prima:", min_value=8, max_value=64, value=16, step=8, key="s_rsa_bits")
+        if st.button("🔑 Generate", key="s_rsa_genkey_btn"):
+            st.session_state.super_rsa_keys = kripto2.rsa_generate_keypair(bits_super)
+
+    if st.session_state.super_rsa_keys:
+        k = st.session_state.super_rsa_keys
+        st.caption(f"Public (e,n)=({k['e']},{k['n']}) | Private (d,n)=({k['d']},{k['n']})")
+    else:
+        st.warning("Klik 'Generate' key RSA dulu sebelum enkripsi/dekripsi Super.")
+
     btn_col1, btn_col2 = st.columns(2)
-    
+
     if btn_col1.button("Enkripsi Super", key="s_enc_btn"):
-        if text_input and v_key and r_key:
-            res, summary, details = kripto2.super_encrypt(text_input, c_shift, v_key, a_key, r_key)
-            st.success("Hasil Akhir Super Enkripsi (HEX):")
+        if not st.session_state.super_rsa_keys:
+            st.warning("Generate key RSA dulu!")
+        elif text_input and v_key:
+            k = st.session_state.super_rsa_keys
+            res, summary, details = kripto2.super_encrypt(
+                text_input, c_shift, v_key, a_key, k["e"], k["n"]
+            )
+            st.success("Hasil Akhir Super Enkripsi:")
             st.code(res)
-            
+
             st.subheader("Ringkasan Output Per Tahap")
             for stage, output in summary.items():
                 st.write(f"**{stage}:** `{output}`")
-                
+
             st.subheader("Rincian Perhitungan Per Tahap")
             for stage_name, steps in details.items():
                 with st.expander(f"Detail {stage_name}"):
@@ -182,16 +231,21 @@ with tab5:
             st.warning("Pastikan semua masukan dan kunci diisi!")
 
     if btn_col2.button("Dekripsi Super", key="s_dec_btn"):
-        if text_input and v_key and r_key:
+        if not st.session_state.super_rsa_keys:
+            st.warning("Generate key RSA dulu!")
+        elif text_input and v_key:
+            k = st.session_state.super_rsa_keys
             try:
-                res, summary, details = kripto2.super_decrypt(text_input, c_shift, v_key, a_key, r_key)
+                res, summary, details = kripto2.super_decrypt(
+                    text_input, c_shift, v_key, a_key, k["d"], k["n"]
+                )
                 st.success("Hasil Akhir Super Dekripsi (Plaintext):")
                 st.code(res)
-                
+
                 st.subheader("Ringkasan Output Per Tahap")
                 for stage, output in summary.items():
                     st.write(f"**{stage}:** `{output}`")
-                    
+
                 st.subheader("Rincian Perhitungan Per Tahap")
                 for stage_name, steps in details.items():
                     with st.expander(f"Detail {stage_name}"):
@@ -200,4 +254,4 @@ with tab5:
             except Exception as e:
                 st.error(f"Error saat dekripsi: {e}")
         else:
-            st.warning("Pastikan Ciphertext HEX dan semua kunci diisi!")
+            st.warning("Pastikan ciphertext dan semua kunci diisi!")
