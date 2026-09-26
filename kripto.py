@@ -1,3 +1,5 @@
+import random
+import math
 # 1. RAIL FENCE CIPHER
 def rail_fence_encrypt(text, rails):
     if rails < 2:
@@ -288,139 +290,182 @@ def rc4_decrypt(ciphertext_hex, key):
     return hasil.decode("latin-1"), semua_steps
 
 # 4. RSA
-# Nilai ini dipakai supaya contoh RSA mudah dipelajari.
-P = 61
-Q = 53
-N = P * Q
-PHI = (P - 1) * (Q - 1)
-E = 17
-D = 2753
+def rsa_is_prime(n, k=20):
+    if n < 2:
+        return False
+    if n in (2, 3):
+        return True
+    if n % 2 == 0:
+        return False
+    r, d = 0, n - 1
+    while d % 2 == 0:
+        r += 1
+        d //= 2
+    for _ in range(k):
+        a = random.randrange(2, n - 1)
+        x = pow(a, d, n)
+        if x == 1 or x == n - 1:
+            continue
+        for _ in range(r - 1):
+            x = pow(x, 2, n)
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
 
 
-def rsa_key_info():
-    steps = [
-        "p = " + str(P),
-        "q = " + str(Q),
-        "n = p x q = " + str(P) + " x " + str(Q) + " = " + str(N),
-        "phi(n) = (p - 1) x (q - 1) = " + str(PHI),
-        "Public exponent (e) = " + str(E),
-        "Private exponent (d) = " + str(D),
-        "Public Key = (" + str(E) + ", " + str(N) + ")",
-        "Private Key = (" + str(D) + ", " + str(N) + ")"
-    ]
-
-    return steps
+def rsa_generate_prime(bits):
+    while True:
+        candidate = random.getrandbits(bits) | (1 << (bits - 1)) | 1
+        if rsa_is_prime(candidate):
+            return candidate
 
 
-def rsa_encrypt(text):
-    hasil = []
+def rsa_extended_gcd(a, b):
+    if b == 0:
+        return a, 1, 0
+    g, x1, y1 = rsa_extended_gcd(b, a % b)
+    return g, y1, x1 - (a // b) * y1
+
+
+def rsa_mod_inverse(e, phi):
+    g, d, _ = rsa_extended_gcd(e, phi)
+    if g != 1:
+        raise ValueError(f"e={e} tidak coprime dengan phi={phi}")
+    return d % phi
+
+
+def rsa_generate_keypair(bits=16):
+    p = rsa_generate_prime(bits)
+    q = rsa_generate_prime(bits)
+    while q == p:
+        q = rsa_generate_prime(bits)
+
+    n = p * q
+    phi = (p - 1) * (q - 1)
+
+    e = 65537
+    if math.gcd(e, phi) != 1:
+        e = 3
+        while math.gcd(e, phi) != 1:
+            e += 2
+
+    d = rsa_mod_inverse(e, phi)
+    return {"p": p, "q": q, "n": n, "phi": phi, "e": e, "d": d}
+
+
+def rsa_get_block_size(n):
+    return max((n.bit_length() - 1) // 8, 1)
+
+def rsa_key_info(key_value, n, label="Key"):
+    """
+    Bikin 1 baris info kunci yang dipakai, buat ditampilin di 'details'
+    Super Enkripsi (sebelumnya dipanggil rsa_key_info() tanpa argumen -
+    ini yang bikin error karena fungsinya belum pernah didefinisikan).
+    """
+    return [f"{label} = ({key_value}, {n})"]
+
+def rsa_encrypt(text, e, n):
+    """Return (res_string, steps) - format sama kayak caesar_encrypt dkk."""
+    block_size = rsa_get_block_size(n)
+    data = text.encode("utf-8")
+    pad_len = (-len(data)) % block_size
+    data += b"\x00" * pad_len
+
+    blocks = [data[i:i + block_size] for i in range(0, len(data), block_size)]
+    int_blocks = [int.from_bytes(b, "big") for b in blocks]
+
+    cipher_blocks = []
     steps = []
+    for idx, m in enumerate(int_blocks):
+        c = pow(m, e, n)
+        cipher_blocks.append(c)
+        steps.append(f"Blok {idx+1}: M={m} -> C = {m}^{e} mod {n} = {c}")
 
-    for i in range(len(text)):
-        m = ord(text[i])
-
-        if m >= N:
-            raise ValueError("Karakter terlalu besar untuk contoh RSA ini.")
-
-        c = pow(m, E, N)
-        hasil.append(str(c))
-
-        steps.append(
-            "Karakter ke-" + str(i + 1) +
-            " '" + text[i] + "' -> M = " + str(m) +
-            " -> C = " + str(m) + "^" + str(E) +
-            " mod " + str(N) + " = " + str(c)
-        )
-
-    hasil_text = " ".join(hasil)
-
-    return hasil_text, steps
+    res = ",".join(str(c) for c in cipher_blocks)
+    return res, steps
 
 
-def rsa_decrypt(ciphertext):
-    if ciphertext.strip() == "":
-        return "", []
+def rsa_decrypt(ciphertext_str, d, n):
+    """Input: string angka dipisah koma. Return (plaintext, steps)."""
+    block_size = rsa_get_block_size(n)
+    try:
+        cipher_blocks = [int(x) for x in ciphertext_str.strip().split(",")]
+    except ValueError:
+        raise ValueError("Ciphertext RSA harus berupa angka dipisah koma (misal: 123,456,789)")
 
-    angka = ciphertext.split()
-    hasil = ""
+    int_blocks = []
     steps = []
+    for idx, c in enumerate(cipher_blocks):
+        m = pow(c, d, n)
+        int_blocks.append(m)
+        steps.append(f"Blok {idx+1}: C={c} -> M = {c}^{d} mod {n} = {m}")
 
-    for i in range(len(angka)):
-        c = int(angka[i])
-        m = pow(c, D, N)
-
-        hasil = hasil + chr(m)
-
-        steps.append(
-            "Cipher ke-" + str(i + 1) +
-            " C = " + str(c) +
-            " -> M = " + str(c) + "^" + str(D) +
-            " mod " + str(N) + " = " + str(m) +
-            " -> '" + chr(m) + "'"
-        )
-
-    return hasil, steps
+    data = b"".join(i.to_bytes(block_size, "big") for i in int_blocks)
+    text_result = data.rstrip(b"\x00").decode("utf-8", errors="ignore")
+    return text_result, steps
 
 # 5. SUPER ENKRIPSI
-def super_encrypt(text, rail, vigenere_key, rc4_key):
+def super_encrypt(text, rail, vigenere_key, rc4_key, e, n):
     summary = {}
     details = {}
-
+ 
     # Tahap 1: Rail Fence
     hasil_rail, step_rail = rail_fence_encrypt(text, rail)
     summary["1. Setelah Rail Fence"] = hasil_rail
     details["1. Rail Fence"] = step_rail
-
+ 
     # Tahap 2: Vigenere
     hasil_vigenere, step_vigenere = vigenere_encrypt(
         hasil_rail, vigenere_key
     )
     summary["2. Setelah Vigenere"] = hasil_vigenere
     details["2. Vigenere"] = step_vigenere
-
+ 
     # Tahap 3: RC4
     hasil_rc4, step_rc4 = rc4_encrypt(
         hasil_vigenere, rc4_key
     )
     summary["3. Setelah RC4"] = hasil_rc4
     details["3. RC4"] = step_rc4
-
+ 
     # Tahap 4: RSA
-    hasil_rsa, step_rsa = rsa_encrypt(hasil_rc4)
+    hasil_rsa, step_rsa = rsa_encrypt(hasil_rc4, e, n)
     summary["4. Setelah RSA"] = hasil_rsa
-    details["4. RSA"] = rsa_key_info() + step_rsa
-
+    details["4. RSA"] = rsa_key_info(e, n, "Public (e, n)") + step_rsa
+ 
     return hasil_rsa, summary, details
-
-
-def super_decrypt(ciphertext, rail, vigenere_key, rc4_key):
+ 
+ 
+def super_decrypt(ciphertext, rail, vigenere_key, rc4_key, d, n):
     summary = {}
     details = {}
-
+ 
     # Balik dari RSA
-    hasil_rsa, step_rsa = rsa_decrypt(ciphertext)
+    hasil_rsa, step_rsa = rsa_decrypt(ciphertext, d, n)
     summary["1. Setelah RSA"] = hasil_rsa
-    details["1. RSA"] = rsa_key_info() + step_rsa
-
+    details["1. RSA"] = rsa_key_info(d, n, "Private (d, n)") + step_rsa
+ 
     # Balik dari RC4
     hasil_rc4, step_rc4 = rc4_decrypt(
         hasil_rsa, rc4_key
     )
     summary["2. Setelah RC4"] = hasil_rc4
     details["2. RC4"] = step_rc4
-
+ 
     # Balik dari Vigenere
     hasil_vigenere, step_vigenere = vigenere_decrypt(
         hasil_rc4, vigenere_key
     )
     summary["3. Setelah Vigenere"] = hasil_vigenere
     details["3. Vigenere"] = step_vigenere
-
+ 
     # Balik dari Rail Fence
     hasil_rail, step_rail = rail_fence_decrypt(
         hasil_vigenere, rail
     )
     summary["4. Setelah Rail Fence"] = hasil_rail
     details["4. Rail Fence"] = step_rail
-
+ 
     return hasil_rail, summary, details
