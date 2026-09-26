@@ -9,6 +9,16 @@ st.set_page_config(
 st.title("Aplikasi Enkripsi & Dekripsi Kriptografi")
 st.caption("Implementasi Algoritma Klasik, Stream Cipher, Asimetris, dan Super Enkripsi")
 
+# Simpan keypair RSA di session_state supaya konsisten dipakai
+# antara Enkripsi & Dekripsi (dan antar Tab 4 & Tab 5)
+if "rsa_bits" not in st.session_state:
+    st.session_state.rsa_bits = 16
+
+if "rsa_keypair" not in st.session_state:
+    st.session_state.rsa_keypair = kripto.rsa_generate_keypair(
+        bits=st.session_state.rsa_bits
+    )
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "1. Rail Fence",
     "2. Vigenere",
@@ -170,13 +180,72 @@ with tab3:
 with tab4:
     st.header("4. RSA")
 
-    st.info(
-        "Contoh RSA menggunakan p = 61 dan q = 53 "
-        "agar perhitungannya mudah dipelajari."
+    BIT_OPTIONS = [8, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512]
+
+    if st.session_state.rsa_bits not in BIT_OPTIONS:
+        # jaga-jaga kalau ada nilai lama yang sudah tidak ada di daftar
+        st.session_state.rsa_bits = 16
+
+    col_bits, col_btn, col_status = st.columns([2, 1, 2])
+
+    with col_bits:
+        bits_choice = st.selectbox(
+            "Ukuran bit tiap prima (p, q):",
+            options=BIT_OPTIONS,
+            index=BIT_OPTIONS.index(st.session_state.rsa_bits),
+            key="rsa_bits_select",
+            help=(
+                "Semakin besar bit, semakin lama proses generate prime "
+                "dan semakin besar angka hasil enkripsi. n = p * q, jadi "
+                "n akan berukuran kurang lebih 2x bit yang dipilih. "
+                "Untuk 256-bit ke atas, proses generate bisa memakan "
+                "waktu beberapa detik karena pencarian prima dilakukan "
+                "murni di Python."
+            )
+        )
+
+    with col_btn:
+        st.write("")
+        st.write("")
+        generate_clicked = st.button("Generate Key RSA", key="rsa_regen")
+
+    if generate_clicked:
+        st.session_state.rsa_bits = bits_choice
+        with st.spinner(f"Membuat prime {bits_choice}-bit..."):
+            st.session_state.rsa_keypair = kripto.rsa_generate_keypair(
+                bits=bits_choice
+            )
+
+    with col_status:
+        st.write("")
+        st.write("")
+        aktif_bits = st.session_state.rsa_bits
+        aktif_n_bits = st.session_state.rsa_keypair["n"].bit_length()
+        st.success(f"Key aktif: {aktif_bits}-bit (n = {aktif_n_bits}-bit)")
+
+    block_size_info = kripto.rsa_get_block_size(
+        st.session_state.rsa_keypair["n"]
+    )
+    st.caption(
+        f"n saat ini berukuran {st.session_state.rsa_keypair['n'].bit_length()} bit "
+        f"-> ukuran blok teks per enkripsi = {block_size_info} byte. "
+        "Semakin kecil bit, semakin kecil pula blok teks yang bisa "
+        "dienkripsi sekali proses (tapi tetap otomatis dipecah per blok)."
     )
 
-    with st.expander("Lihat Key RSA"):
-        key_steps = kripto.rsa_key_info()
+    keypair = st.session_state.rsa_keypair
+    e, d, n = keypair["e"], keypair["d"], keypair["n"]
+
+    with st.expander("Lihat Key RSA", expanded=True):
+        st.write(f"p = {keypair['p']}")
+        st.write(f"q = {keypair['q']}")
+        st.write(f"n = {keypair['n']}")
+        st.write(f"phi(n) = {keypair['phi']}")
+
+        key_steps = (
+            kripto.rsa_key_info(e, n, "Public (e, n)")
+            + kripto.rsa_key_info(d, n, "Private (d, n)")
+        )
 
         for step in key_steps:
             st.write(step)
@@ -192,20 +261,20 @@ with tab4:
         if text_input:
             try:
                 hasil, steps = kripto.rsa_encrypt(
-                    text_input
+                    text_input, e, n
                 )
 
                 st.success("Hasil Enkripsi RSA:")
                 st.code(hasil)
 
                 with st.expander("Lihat Langkah-Langkah RSA"):
-                    for step in key_steps:
+                    for step in kripto.rsa_key_info(e, n, "Public (e, n)"):
                         st.write(step)
 
                     for step in steps:
                         st.write(step)
-            except Exception as e:
-                st.error("Error: " + str(e))
+            except Exception as e_err:
+                st.error("Error: " + str(e_err))
         else:
             st.warning("Masukkan teks terlebih dahulu!")
 
@@ -213,20 +282,20 @@ with tab4:
         if text_input:
             try:
                 hasil, steps = kripto.rsa_decrypt(
-                    text_input
+                    text_input, d, n
                 )
 
                 st.success("Hasil Dekripsi RSA:")
                 st.code(hasil)
 
                 with st.expander("Lihat Langkah-Langkah RSA"):
-                    for step in key_steps:
+                    for step in kripto.rsa_key_info(d, n, "Private (d, n)"):
                         st.write(step)
 
                     for step in steps:
                         st.write(step)
-            except Exception as e:
-                st.error("Ciphertext RSA tidak valid: " + str(e))
+            except Exception as e_err:
+                st.error("Ciphertext RSA tidak valid: " + str(e_err))
         else:
             st.warning("Masukkan ciphertext RSA terlebih dahulu!")
 
@@ -237,6 +306,9 @@ with tab5:
     st.caption(
         "Urutan: Rail Fence -> Vigenere -> RC4 -> RSA"
     )
+
+    keypair = st.session_state.rsa_keypair
+    e, d, n = keypair["e"], keypair["d"], keypair["n"]
 
     text_input = st.text_area(
         "Masukkan teks:",
@@ -270,9 +342,12 @@ with tab5:
             key="super_rc4"
         )
 
+    st.write(f"4. RSA menggunakan:")
+    st.write(f"Public Key (e={e}, n={n})")
+    st.write(f"Private Key (d={d}, n={n})")
     st.write(
-        "4. RSA menggunakan Public Key dan Private Key "
-        "yang ditampilkan pada menu RSA."
+        f"dari menu RSA (prima {st.session_state.rsa_bits}-bit). "
+        "Ubah ukuran bit di Tab 4 jika perlu."
     )
 
     col1, col2 = st.columns(2)
@@ -284,7 +359,9 @@ with tab5:
                     text_input,
                     rail_key,
                     vig_key,
-                    rc4_key
+                    rc4_key,
+                    e,
+                    n
                 )
 
                 st.success("Hasil Akhir Super Enkripsi:")
@@ -303,8 +380,8 @@ with tab5:
                         for step in steps:
                             st.write(step)
 
-            except Exception as e:
-                st.error("Error: " + str(e))
+            except Exception as ex:
+                st.error("Error: " + str(ex))
         else:
             st.warning(
                 "Teks, kunci Vigenere, dan kunci RC4 harus diisi!"
@@ -317,7 +394,9 @@ with tab5:
                     text_input,
                     rail_key,
                     vig_key,
-                    rc4_key
+                    rc4_key,
+                    d,
+                    n
                 )
 
                 st.success("Hasil Akhir Super Dekripsi:")
@@ -336,8 +415,8 @@ with tab5:
                         for step in steps:
                             st.write(step)
 
-            except Exception as e:
-                st.error("Error saat dekripsi: " + str(e))
+            except Exception as ex:
+                st.error("Error saat dekripsi: " + str(ex))
         else:
             st.warning(
                 "Ciphertext, kunci Vigenere, dan kunci RC4 harus diisi!"
